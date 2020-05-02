@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+	<title>Michael Robbins Final</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+            background-color: black;
+		}
+        
+        #parent {
+            display: flex;
+            height: 100%;
+            padding: 5px;
+            flex-wrap: wrap;
+        }
+        
+        #context {
+            flex: 1;
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: rgba(155, 235, 235, 0.7);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            z-index: 500;
+            margin: 5px;
+            overflow: auto;
+            flex-direction: column;
+            height: 100%;
+        }
+    
+		#map {
+			width: 75%;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            z-index: 500;
+            margin: 5px;
+            height: 100%;
+            padding: 6px 8px;
+		}
+        
+        #chart_div {
+            z-index: 500;
+            width: 100%;
+            height: 50%;
+            padding: 6px 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 1);
+            border-radius: 5px;
+            margin: 5px 5px;
+            background-color: grey;
+        }
+        
+        /* Leaflet control box for displaying population density */
+        .info { 
+            padding: 6px 8px; 
+            font: 14px/16px Arial, Helvetica, sans-serif; 
+            background: black; 
+            background: rgba(255,255,255,0.8); 
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); 
+            border-radius: 5px;
+        }
+        
+        /* Within the leaflet control box changing font for 'US Population Density' string */
+        .info h4 { 
+            margin: 0 0 5px;
+            color: #777;
+        }
+        
+        /* controlling legend box dimensions and color */
+        .legend { 
+            text-align: left; 
+            line-height: 18px; 
+            color: #555; } 
+        
+        /* font for each legend item...both color and string*/
+        .legend i { 
+            width: 18px; 
+            height: 18px; 
+            float: left;
+            margin-right: 8px; 
+            opacity: 0.7; 
+        }
+    /* Map Title floating over map */
+        .info1 {
+            left: 50%;
+            margin-left: -330px;
+            z-index: 1000;
+            position: absolute;
+            top: 3%;
+            padding: 6px 8px;
+            font: 10px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255, 255, 255, .8);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+        .info1 h1 {
+            font-size: 18px;
+            margin: 5px 5px 5px;
+            color: #808080;
+        }
+    </style>
+    
+</head>
+<body>
+    <div class='info1'>
+        <h1>COVID Impact on the Northeast USA</h1>
+    </div>
+    
+    <div id='parent'>
+        <!-- the map container -->
+        <div id='map'></div>
+    
+        <!-- Context Box -->
+        <div id='context'>The first case of Corona was documented in China on November 17th, 2019. The first case documented in the United States was on January 20, 2020.<br><br>With limited medical supplies and poor leadership in the federal government, The United States has had an exponential infection rate. The reponse to the pandemic has had detrimental effects to the economy and the course of action isn't clear.<br><br>People should remain indoors. However if you must go outside, wear masks! If you don't exhibit symptoms, you can still infect other people.<br><br>We are in this together! If lives are going to be saved, we need to think of the people who don't have healthy immune systems, limited financial resources, and the future of our children.<br><br><h2 style='text-decoration: underline; text-align: center; margin: 0px'>Total Cases</h2><br><h3 style='text-align: center; margin-bottom: 10px'><span id='total'></span></h3><h2 style='text-decoration: underline; text-align: center; margin-bottom: 10px'>Total Deaths</h2><br><h3 style='text-align: center; margin: 10px'><span id='deaths'></span></h3></div>
+        
+        <div id="chart_div"></div>
+
+    </div>
+
+    <!--sourcing the associated geojson file...the data! -->
+    <script type="text/javascript" src="counties_covid.geojson"></script>
+    <script type="text/javascript" src="state_boudnaries.geojson"></script>
+    <script type="text/javascript" src="corona_counties_linegraph_data.json"></script>
+    <script type="text/javascript">
+        
+        // Setting the map object to fill the map container
+        // Choosing a center point and zoom level
+        var map = L.map('map').setView([43.022629, -75.783460], 6);
+
+        // Adding a basemap
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+            maxZoom: 18,
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+                '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+                'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            id: 'mapbox/light-v9',
+            tileSize: 512,
+            zoomOffset: -1
+        }).addTo(map);
+
+
+        // control that shows state info on hover
+        // L.control allows you to create things like legends, info boxes, etc...
+        var info = L.control();
+
+        // L.control() has preset methods and .onAdd is one of them
+        info.onAdd = function (map) {
+            // accessing the document object model...accessed the .info css to create info box
+            this._div = L.DomUtil.create('div', 'info');
+            // this function is defined below...updates info box with geojson information
+            this.update();
+            // when function is called, this is what get's returned. 
+            return this._div;
+        };
+
+        // THis method is called in the above onAdd method. props is the parameter passed trhough the function
+        info.update = function (props) {
+            // html string is displayed in info box.
+            // shorthand conditional statement (? :) used to either display geojson info.. or 'Hover over a state' string.
+            // info.update is always called, but geojson data isn't always accessed...see below for how geojson data is accessed.
+            this._div.innerHTML = '<h4>COVID Data by County</h4>' +  (props ?
+                '<b>' + props.NAME + '</b><br />' + numberWithCommas(props.cases) + ' cases<br>' + numberWithCommas(props.deaths) + ' deaths'
+                : 'Hover over a county');
+        };
+
+        // Adds info box to the map... order is important heere.
+        info.addTo(map);
+
+
+        // get color depending on population density value
+        // shorthand conditional statement is used
+        // color for each state in the USA depending on population density
+        function getColor(d) {
+            // if population density is greater than a 1000, #800026 color is returned for the state
+            return d > 100000 ? '#750000' :
+            // if population is greater than 500, #BD0026 is returned
+            d > 50000  ? '#A30000' :
+            d > 25000 ? '#D10000' :
+            d > 15000  ? '#FF0000' :
+            d > 5000   ? '#FF2E2E' :
+            d > 500   ? '#FF5C5C' :
+            d > 0   ? '#FF8A8A' :
+            // if d is not greater than 10, #FFEDA0 is returned... this is the else statement.
+            '#ffffff';
+        }
+
+        // this is teh first property of the geojson object 'style: style'. This is a function with one parameter being passed through
+        // All states will have the same properties except fillColor property which is determined by the getColor function
+        function style(feature) {
+            return {
+                weight: 1,
+                opacity: 2,
+                color: 'white',
+                dashArray: '1',
+                fillOpacity: 0.9,
+                // defined getColor above..the arguments passed through are the density of each state in the USA
+                // feature is statesData.features[i].. each state has multiple properties. One is density.
+                fillColor: getColor(feature.properties.cases)
+            };
+        }
+
+        // This is an important function because is communicates the geojson data into the info box
+        // Below in the onEachFeature function, if mouseover is over the geojson, this function grabs the geojson data
+        // if the mouseover is not above the geojson data, it still calls the info.update, but used the else statement to display 'HOver over state'
+        function highlightFeature(e) {
+            var layer = e.target;
+
+            // sets the style of the feature passed through on the mouseover
+            layer.setStyle({
+                weight: 4,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 1,
+            });
+
+            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
+
+            // Updates the info box
+            info.update(layer.feature.properties);
+        }
+
+        // Declaring geojson object
+        var ny;
+        var boundaries;
+
+        // on mouseout, resets the style to the defaults and sends counties to the back
+        function resetHighlight(e) {
+            ny.resetStyle(e.target).bringToBack();
+            nj.resetStyle(e.target).bringToBack();
+            va.resetStyle(e.target).bringToBack();
+            wv.resetStyle(e.target).bringToBack();
+            de.resetStyle(e.target).bringToBack();
+            dc.resetStyle(e.target).bringToBack();
+            pa.resetStyle(e.target).bringToBack();
+            ma.resetStyle(e.target).bringToBack();
+            ct.resetStyle(e.target).bringToBack();
+            me.resetStyle(e.target).bringToBack();
+            vt.resetStyle(e.target).bringToBack();
+            nh.resetStyle(e.target).bringToBack();
+            ri.resetStyle(e.target).bringToBack();
+            md.resetStyle(e.target).bringToBack();
+            info.update();
+        }
+
+        // if user clicks on a feature, this function forces a zoom to the state object selected
+        function zoomToFeature(e) {
+            // getBounds returns bounding box of object selected. fitBounds updates the map to the zoom of bounding box.
+            map.fitBounds(e.target.getBounds());
+        }
+
+        // this function is the second property of the geojson object (onEachFeature: onEachFeature)
+        // this function houses the other functions defined above.
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: highlightFeature,
+                mouseout: resetHighlight,
+                //click: zoomToFeature
+            });
+        }
+
+        //L.geojson takes two arguments. statesData is the variable defined in the us-states geojson file. Next is an object that contains the style and onEachFeature properties.
+        ny = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'New York') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        nj = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'New Jersey') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        pa = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Pennsylvania') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        vt = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Vermont') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        nh = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'New Hampshire') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        me = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Maine') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        ma = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Massachusetts') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        ct = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Connecticut') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        va = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Virginia') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        wv = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'West Virginia') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        de = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Delaware') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        dc = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'District of Columbia') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        ri = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Rhode Island') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+        
+        md = L.geoJson(newyork, {
+            style: style,
+            onEachFeature: onEachFeature,
+            filter: function(feature, layer) {
+                if (feature.properties.state === 'Maryland') {
+                    return feature;
+                }                
+            } 
+        }).addTo(map);
+
+        boundaries = L.geoJson(boundary, {
+            fillOpacity: 0,
+            interactive: false,
+            color: '#1b1e23',
+            weight: 4,
+        }).addTo(map);
+
+
+        // Adds metadata and references to the bottom of the map div object.
+        map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+        
+        // Ensures state boundaries are always above counties
+        map.on("overlayadd", function (event) {
+            boundaries.bringToFront();
+        });
+        
+        // calling L.control again but for the legend this time
+        // the info box utilized the default options, but for the legend, we updated the position property to display in the 'bottomright' of the map
+        var legend = L.control({position: 'bottomright'});
+
+        // calling the the onAdd method to create the container for the legend
+        legend.onAdd = function (map) {
+            // predefining the breaks in the legend
+            var div = L.DomUtil.create('div', 'info legend'),
+                grades = [0, 500, 5000, 15000, 25000, 50000, 100000],
+                // empty array that will be filled with the push method below
+                labels = [],
+                // declaring blank variable
+                from, 
+                // declaring blank variable
+                to;
+
+            // for loop to iterate through the grades defined above
+            for (var i = 0; i < grades.length; i++) {
+                from = grades[i];
+                to = grades[i + 1];
+                labels.push(
+                    // utilizing the css legend i class to format the strings associated with each grade break in the legend.
+                    // from represents the lower point and to represents the upper point of pop density.
+                    //&ndash must be the code for a '-'
+                    '<i style="background:' + getColor(from + 1) + '"></i> ' + from + (to ? '&ndash;' + to : '+')
+                );
+            }
+
+            //finalizing the legend by joining each grade with a line break...neatly stacks each legend item on top of eachother.
+            div.innerHTML = labels.join('<br>');
+            return div;
+        };
+
+        legend.addTo(map);
+        
+        var sourceLayers = {
+            "<b>NY</b>": ny,
+            "<b>NJ</b>": nj,
+            "<b>PA</b>": pa,
+            "<b>VA</b>": va,
+            "<b>WV</b>": wv,
+            "<b>DE</b>": de,
+            "<b>DC</b>": dc,
+            "<b>MD</b>": md,
+            "<b>VT</b>": vt,
+            "<b>NH</b>": nh,
+            "<b>ME</b>": me,
+            "<b>MA</b>": ma,
+            "<b>CT</b>": ct,
+            "<b>RI</b>": ri,
+        }
+
+        L.control.layers(null, sourceLayers, {collapsed:false}).addTo(map);
+        
+        let x = []
+        for(i=0; i < Object.keys(linegraph.cases).length; i++) {
+            x.push([parseInt(Object.keys(linegraph.cases)[i]),linegraph.cases[i],linegraph.deaths[i]])
+        }
+        let y = []
+        for(i=0; i < Object.keys(linegraph.cases).length; i++) {
+            y.push([Object.keys(linegraph.cases)[i],linegraph.cases[i],linegraph.deaths[i]])
+        }
+        y.reverse()
+        
+        google.charts.load('current', {packages: ['corechart', 'line']});
+        google.charts.setOnLoadCallback(drawCrosshairs);
+
+        function drawCrosshairs() {
+            var data = new google.visualization.DataTable();
+            data.addColumn('number', 'X');
+            data.addColumn('number', 'Cases');
+            data.addColumn('number', 'Deaths');
+            data.addRows(x);
+
+      var options = {
+          hAxis: {
+              title: 'Days Since First USA Corona Case'
+          },
+          vAxis: {
+              title: 'Count'
+            },
+          colors: ['#a52714', '#097138'],
+          crosshair: {
+              color: '#000',
+              trigger: 'selection'
+          },
+          tooltip: {
+              isHtml: true
+          },
+      };
+            var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+
+      
+            chart.draw(data, options);
+      
+            chart.setSelection([{row: 90, column: 1}]);
+
+    }
+        document.getElementById("total").innerHTML = numberWithCommas(y[0][1])
+        document.getElementById("deaths").innerHTML = numberWithCommas(y[0][2])
+        
+        function numberWithCommas(x) {
+            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+    </script>
+
+
+
+</body>
+</html>
